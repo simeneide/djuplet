@@ -13,7 +13,7 @@ def total_punctuation(text, punctuation={',', '.', '?', ':', '!'}):
     """Returns the total number of punctuation marks in the text."""
     return sum(1 for char in text if char in punctuation)
 
-def permute_paragraph(paragraph, level):
+def corrupt_paragraph(paragraph, level):
     PUNCTUATION = {',', '.', '?', ':', '!'}
     
     if level == 0:
@@ -114,4 +114,4 @@ def permute_paragraph(paragraph, level):
 # Example Usage
 paragraph = "This is an example paragraph. It has punctuation, and different cases!"
 for i in range(10):
-    print(f"Level {i}:", permute_paragraph(paragraph, i))
+    print(f"Level {i}:", corrupt_paragraph(paragraph, i))
