@@ -1,27 +1,17 @@
-#!/usr/bin/env python3
+import json
+import random
+import argparse
+from corrupter import corrupt_paragraph
+from tqdm import tqdm
 import random
 import re
 
-def find_natural_punctuation_insertion_positions(text, punctuation={',', '.', '?', ':', '!'}):
-    """
-    Finds natural positions in the text where punctuation can be inserted.
-    A natural position is defined as the index immediately after a word (as defined by \b\w+\b)
-    where there is no punctuation already present.
-    
-    Parameters:
-        text (str): The input text.
-        punctuation (set): A set of punctuation characters to check against.
-        
-    Returns:
-        list: A list of integer indices in the text where punctuation can be inserted.
-    """
+def find_valid_punctuation_positions(text, punctuation={',', '.', '?', ':', '!'}):
+    """Finds positions where punctuation can be safely added without creating duplicates like ',,' or '!!'."""
     positions = []
-    for match in re.finditer(r'\b\w+\b', text):
-        pos = match.end()
-        # If the character at the position exists and is punctuation, skip it.
-        if pos < len(text) and text[pos] in punctuation:
-            continue
-        positions.append(pos)
+    for i in range(1, len(text)):
+        if text[i] not in punctuation and text[i-1] not in punctuation:
+            positions.append(i)
     return positions
 
 def total_punctuation(text, punctuation={',', '.', '?', ':', '!'}):
@@ -42,8 +32,7 @@ def corrupt_paragraph(paragraph, level):
         pos = random.choice(punctuation_positions)
         char = text[pos]
         text = text[:pos] + text[pos+1:]
-        # Use the natural punctuation insertion positions.
-        valid_positions = find_natural_punctuation_insertion_positions(text, PUNCTUATION)
+        valid_positions = find_valid_punctuation_positions(text, PUNCTUATION)
         if valid_positions:
             new_pos = random.choice(valid_positions)
             text = text[:new_pos] + char + text[new_pos:]
@@ -76,7 +65,7 @@ def corrupt_paragraph(paragraph, level):
 
     def add_punctuation(text):
         num = random.randint(1, 5)
-        valid_positions = find_natural_punctuation_insertion_positions(text, PUNCTUATION)
+        valid_positions = find_valid_punctuation_positions(text, PUNCTUATION)
         
         if not valid_positions:
             return text
@@ -104,8 +93,8 @@ def corrupt_paragraph(paragraph, level):
 
     def random_combo(text):
         functions = [move_one_punctuation, move_multiple_punctuation, remove_one_punctuation,
-                     remove_multiple_punctuation, add_punctuation, randomize_casing,
-                     remove_all_punctuation, lowercase_no_punctuation]
+                    remove_multiple_punctuation, add_punctuation, randomize_casing,
+                    remove_all_punctuation, lowercase_no_punctuation]
         for _ in range(5):
             f1, f2 = random.sample(functions, 2)
             modified_text = f2(f1(text))
@@ -127,9 +116,25 @@ def corrupt_paragraph(paragraph, level):
     
     return transformations[level](paragraph)
 
-# Example Usage
+def process_jsonl(input_file, output_file):
+    with open(input_file, 'r', encoding='utf-8') as infile:
+        lines = infile.readlines()
+    
+    with open(output_file, 'w', encoding='utf-8') as outfile:
+        for line in tqdm(lines, desc="Processing", unit="line", total=len(lines)):
+            data = json.loads(line)
+            if 'text' in data:
+                level = random.randint(0, 9)
+                data['corrupt'] = corrupt_paragraph(data['text'], level)
+                data['corrupt_level'] = level
+            json.dump(data, outfile, ensure_ascii=False)
+            outfile.write('\n')
+
 if __name__ == "__main__":
-    paragraph = "This is an example paragraph. It has punctuation, and different cases!"
-    for i in range(10):
-        print(f"Level {i}:", corrupt_paragraph(paragraph, i))
+    parser = argparse.ArgumentParser(description="Apply corrupt_paragraph to a JSONL file.")
+    parser.add_argument("--input_file", required=True, help="Path to the input JSONL file")
+    parser.add_argument("--output_file", required=True, help="Path to the output JSONL file")
+    args = parser.parse_args()
+    
+    process_jsonl(args.input_file, args.output_file)
 
