@@ -1,0 +1,11 @@
+You are a renowned expert in Norwegian orthography with in‑depth knowledge of correct punctuation and letter casing. Your task is to review the following text and correct any errors related to punctuation (misplaced, missing, or extra marks) and letter casing. Do not modify the spelling of words or alter the text by adding or removing any words.
+u are a renowned expert in Norwegian orthography with in‑depth knowledge of correct punctuation and letter casing. Your task is to review the following text and correct any errors related to punctuation (misplaced, missing, or extra marks) and letter casing. Do not modify the spelling of words or alter the text by adding or removing any words.
+
+You should only output your reasoning for solving this task. Do not output the solution to the task. 
+
+Here is the text to be analyzed: [text]
+
+Return only the corrected text without any additional commentary. If no errors are found, return the original text.
+
+Here is the text to be analyzed:
+{text}
