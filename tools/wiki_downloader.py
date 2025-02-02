@@ -69,45 +69,52 @@ def is_valid_article(title: str):
         return False
     return True
 
+
 def extract_paragraphs_from_page(wiki_text: str, min_words: int):
-    """
-    Parses wikitext while removing:
-      - Templates (e.g., {{Infobox ... }})
-      - Lists (e.g., "* item", "# numbered item")
-      - Very short paragraphs (< min_words)
-      - Paragraphs not ending in proper punctuation (. , ! ?)
-      - Paragraphs containing "..." or "…"
-    """
     parsed = mwparserfromhell.parse(wiki_text)
 
-    # Remove templates
-    for template in parsed.ifilter_templates():
-        wiki_text = wiki_text.replace(str(template), "")
+    # 1. Remove templates FIRST (recursively)
+    templates = list(parsed.ifilter_templates(recursive=True))
+    for template in templates:
+        parsed.remove(template)
 
-    parsed = mwparserfromhell.parse(wiki_text)  # Re-parse without templates
+    # 2. Remove File/Image links in SEPARATE pass
+    file_links = [
+        link for link in parsed.ifilter_wikilinks()
+        if str(link.title).strip().startswith(("File:", "Image:"))
+    ]
+    for link in file_links:
+        parsed.remove(link)
 
-    # Get plain text (strip unnecessary wiki formatting)
-    plain_text = parsed.strip_code(normalize=True, collapse=True)
+    # 3. Remove HTML tags in SEPARATE pass
+    html_tags = list(parsed.ifilter_tags())
+    for tag in html_tags:
+        parsed.remove(tag)
 
-    # Split text into paragraphs (ensuring each paragraph is a single line)
-    raw_paragraphs = [re.sub(r'\s+', ' ', p.strip()) for p in plain_text.split("\n\n") if p.strip()]
+    # 4. Remove headings in FINAL pass
+    headings = list(parsed.ifilter_headings())
+    for heading in headings:
+        parsed.remove(heading)
 
-    # Define valid ending punctuation for paragraphs
+    # Process remaining text
+    plain_text = parsed.strip_code(normalize=False, collapse=False)
+    split_paragraphs = re.split(r'\n{2,}', plain_text)
+    raw_paragraphs = [re.sub(r'\s+', ' ', p.strip()) for p in split_paragraphs if p.strip()]
+
     valid_endings = {'.', '!', '?', ','}
-
-    # Filter paragraphs
     paragraphs = []
-    for paragraph in raw_paragraphs:
-        words = paragraph.split()
-        if len(words) < min_words:  # Remove very short paragraphs
+    for p in raw_paragraphs:
+        words = p.split()
+        if len(words) < min_words:
             continue
-        if paragraph[-1] not in valid_endings:  # Remove paragraphs without proper ending
+        if p[-1] not in valid_endings:
             continue
-        if "..." in paragraph or "…" in paragraph:  # Remove paragraphs with "..." or "…"
+        if "..." in p or "…" in p or "thumb|" in p:
             continue
-        paragraphs.append(paragraph)
+        paragraphs.append(p)
 
     return paragraphs
+
 
 def process_dump(language: str, bz2_file: str, output_file: str, max_paragraphs: int, min_words: int):
     """
