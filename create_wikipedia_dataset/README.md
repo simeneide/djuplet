@@ -14,7 +14,7 @@ This repository provides a complete end-to-end pipeline for processing Norwegian
 ## Repository Structure
 
 - **download_wiki_paragraphs.py**: Downloads and extracts valid paragraphs from a Wikipedia dump.
-- **validate_and_orrupt_paragraphs.py**: Validates every line, clean up some oddities and spplies various corruption transformations to the extracted paragraphs.
+- **corrupt_paragraphs.py**: Applies various corruption transformations to the extracted paragraphs.
 - **create_splits_and_upload_dataset.py**: Splits the processed data into several dataset splits and uploads them to the Hugging Face Hub.
 - **README.md**: This file.
 
@@ -37,10 +37,10 @@ Parameters:
 ```
 
 ## 2. Apply Corruption Transformations
-Run the validate_and_corrupt_paragraphs.py script to add corrupted versions of the paragraphs:
+Run the `corrupt_paragraphs.py` script to add corrupted versions of the paragraphs:
 
 ```bash
-python validate_paragraphs.py --input_file norwegian.jsonl --output_file norwegian_corrupt.jsonl
+python corrupt_paragraphs.py --input_file norwegian.jsonl --output_file norwegian_corrupt.jsonl
 ```
 
 This script reads each JSON record from norwegian.jsonl, randomly selects a corruption level (0–9), and adds two new fields:
