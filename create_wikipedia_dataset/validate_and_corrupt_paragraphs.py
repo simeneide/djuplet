@@ -158,19 +158,29 @@ def corrupt_paragraph(paragraph: str, level: int) -> str:
 
 def process_jsonl(input_file, output_file):
     """
-    Processes each JSON record in the input JSONL file by applying a random corruption 
-    transformation to the 'text' field and writes the updated record to the output JSONL file.
+    Processes each JSON record in the input JSONL file by applying a random corruption
+    transformation to the 'text' field (only if it starts with an uppercase character)
+    and writes the updated record to the output JSONL file.
+    
+    Records that do not have a 'text' field or where the 'text' does not start with an uppercase
+    letter are skipped and not written to the output file.
     """
     with open(input_file, 'r', encoding='utf-8') as infile:
         lines = infile.readlines()
-    
+
     with open(output_file, 'w', encoding='utf-8') as outfile:
         for line in tqdm(lines, desc="Processing", unit="line", total=len(lines)):
             data = json.loads(line)
-            if 'text' in data:
-                level = random.randint(0, 9)
-                data['corrupt'] = corrupt_paragraph(data['text'], level)
-                data['corrupt_level'] = level
+            # Only process and write records where 'text' exists and starts with an uppercase character.
+            if 'text' not in data or not data['text'][0].isupper():
+                continue
+
+            data['text'] = data['text'].replace(", (),", "")
+            data['text'] = data['text'].replace("() ", "")
+            level = random.randint(0, 9)
+            data['corrupt'] = corrupt_paragraph(data['text'], level)
+            data['corrupt_level'] = level
+
             json.dump(data, outfile, ensure_ascii=False)
             outfile.write('\n')
 

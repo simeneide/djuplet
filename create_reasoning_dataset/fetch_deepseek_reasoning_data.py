@@ -17,7 +17,7 @@ def process_file(input_file, template, output_file, api_key):
       - The API's reasoning (from reasoning_content) is stored in "reasoning".
       - The original "text" field is then removed.
       
-    If extraction fails, the entire response object is printed and a breakpoint is triggered.
+    If extraction fails, the error is logged and processing continues.
     """
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
@@ -41,11 +41,13 @@ def process_file(input_file, template, output_file, api_key):
                 for line in in_f:
                     data = json.loads(line.strip())
                     if "text" not in data:
-                        raise ValueError("Missing 'text' field.")
+                        # Log and skip records without 'text'
+                        print("Skipping record: missing 'text' field.")
+                        pbar.update(1)
+                        continue
 
                     # Preserve the original text.
                     original_text = data["text"]
-
                     user_prompt = template.format(text=original_text)
 
                     try:
@@ -59,18 +61,15 @@ def process_file(input_file, template, output_file, api_key):
                         )
                     except Exception as api_error:
                         print(f"API Error during call: {api_error}")
-                        import pdb; pdb.set_trace()
                         response = None
 
                     if response is not None:
                         try:
-                            # Access the first choice's message using attribute access.
                             message = response.choices[0].message
                             api_reasoning = message.reasoning_content
                             if not api_reasoning:
                                 print("reasoning_content not found in the message object:")
                                 print(message)
-                                import pdb; pdb.set_trace()
                                 api_reasoning = "ERROR: reasoning_content missing"
                             else:
                                 api_reasoning = api_reasoning.strip()
@@ -78,7 +77,6 @@ def process_file(input_file, template, output_file, api_key):
                             print(f"Error extracting reasoning: {inner_err}")
                             print("Full response object for inspection:")
                             print(response)
-                            import pdb; pdb.set_trace()
                             api_reasoning = "ERROR: Failed to extract reasoning"
                     else:
                         api_reasoning = "ERROR: Failed to get response from API"
@@ -92,7 +90,6 @@ def process_file(input_file, template, output_file, api_key):
                     json.dump(data, out_f, ensure_ascii=False)
                     out_f.write("\n")
                     pbar.update(1)
-
     except Exception as e:
         print(f"Error: {e}")
 
