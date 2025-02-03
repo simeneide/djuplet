@@ -24,8 +24,8 @@ This repository provides a complete end-to-end pipeline for processing Norwegian
 Run the download_wiki_paragraphs.py script to download the Norwegian Wikipedia dump and extract valid paragraphs:
 
 ```bash
-python download_wiki_paragraphs.py --language no --output_file norwegian.jsonl
-
+python download_wiki_paragraphs.py --language no --output_file ../data/norwegian.jsonl --temp_dump_file ../data/norwegian.xml.bz2
+ 
 ```
 
 Parameters:
@@ -40,7 +40,7 @@ Parameters:
 Run the validate_and_corrupt_paragraphs.py script to add corrupted versions of the paragraphs:
 
 ```bash
-python validate_and_corrupt_paragraphs.py --input_file norwegian.jsonl --output_file norwegian_corrupt.jsonl
+python validate_paragraphs.py --input_file norwegian.jsonl --output_file norwegian_corrupt.jsonl
 ```
 
 This script reads each JSON record from norwegian.jsonl, randomly selects a corruption level (0–9), and adds two new fields:
