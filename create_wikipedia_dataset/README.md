@@ -18,16 +18,9 @@ This repository provides a complete end-to-end pipeline for processing Norwegian
 - **create_splits_and_upload_dataset.py**: Splits the processed data into several dataset splits and uploads them to the Hugging Face Hub.
 - **README.md**: This file.
 
-## Requirements
+# Procedure
 
-Ensure you have the following Python packages installed. You can install them using the provided `requirements.txt` file and that your DeepSeek-API-key is set:
-
-```bash
-pip install -r requirements.txt
-export DeepSeekApi=<your_deepseek_api_key>
-```
-
-# 1. Download and Extract Wikipedia Paragraphs
+## 1. Download and Extract Wikipedia Paragraphs
 Run the download_wiki_paragraphs.py script to download the Norwegian Wikipedia dump and extract valid paragraphs:
 
 ```bash
@@ -43,7 +36,7 @@ Parameters:
 [--minimum_words_paragraph: Minimum number of words for a paragraph to be considered valid.]
 ```
 
-# 2. Apply Corruption Transformations
+## 2. Apply Corruption Transformations
 Run the validate_and_corrupt_paragraphs.py script to add corrupted versions of the paragraphs:
 
 ```bash
@@ -61,7 +54,7 @@ Parameters:
 ```
 
 
-# 3. Create Dataset Splits and Upload to Hugging Face Hub
+## 3. Create Dataset Splits and Upload to Hugging Face Hub
 Finally, split the processed dataset into multiple splits and upload them:
 
 ```bash
