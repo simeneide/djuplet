@@ -23,15 +23,14 @@ import argparse
 import re
 from tqdm import tqdm
 
-def find_valid_punctuation_positions(text: str, punctuation: set = {',', '.', '?', ':', '!'}) -> list:
+def find_natural_punctuation_positions(text: str, punctuation: set = {',', '.', '?', ':', '!'}) -> list:
     """
-    Finds positions in the text where a punctuation character can be inserted safely,
-    avoiding consecutive punctuation marks.
+    Finds positions in the text where a punctuation character can be inserted naturally,
+    i.e. immediately after a word (alphanumeric character) and before a whitespace or end-of-string.
+    This ensures punctuation is inserted only at natural word boundaries and not adjacent to existing punctuation.
     """
-    positions = []
-    for i in range(1, len(text)):
-        if text[i] not in punctuation and text[i - 1] not in punctuation:
-            positions.append(i)
+    pattern = r'(?<=[A-Za-z0-9])(?=\s|$)'
+    positions = [match.start() for match in re.finditer(pattern, text)]
     return positions
 
 def total_punctuation(text: str, punctuation: set = {',', '.', '?', ':', '!'}) -> int:
@@ -69,7 +68,7 @@ def corrupt_paragraph(paragraph: str, level: int) -> str:
         char = text[pos]
         # Remove the punctuation character
         text = text[:pos] + text[pos+1:]
-        valid_positions = find_valid_punctuation_positions(text, PUNCTUATION)
+        valid_positions = find_natural_punctuation_positions(text, PUNCTUATION)
         if valid_positions:
             new_pos = random.choice(valid_positions)
             text = text[:new_pos] + char + text[new_pos:]
@@ -102,7 +101,7 @@ def corrupt_paragraph(paragraph: str, level: int) -> str:
 
     def add_punctuation(text: str) -> str:
         num = random.randint(1, 5)
-        valid_positions = find_valid_punctuation_positions(text, PUNCTUATION)
+        valid_positions = find_natural_punctuation_positions(text, PUNCTUATION)
         if not valid_positions:
             return text
         for _ in range(num):
@@ -159,11 +158,9 @@ def corrupt_paragraph(paragraph: str, level: int) -> str:
 def process_jsonl(input_file, output_file):
     """
     Processes each JSON record in the input JSONL file by applying a random corruption
-    transformation to the 'text' field (only if it starts with an uppercase character)
-    and writes the updated record to the output JSONL file.
+    transformation to the 'text' field and writes the updated record to the output JSONL file.
     
-    Records that do not have a 'text' field or where the 'text' does not start with an uppercase
-    letter are skipped and not written to the output file.
+    The record must have a 'text' field.
     """
     with open(input_file, 'r', encoding='utf-8') as infile:
         lines = infile.readlines()
@@ -171,12 +168,6 @@ def process_jsonl(input_file, output_file):
     with open(output_file, 'w', encoding='utf-8') as outfile:
         for line in tqdm(lines, desc="Processing", unit="line", total=len(lines)):
             data = json.loads(line)
-            # Only process and write records where 'text' exists and starts with an uppercase character.
-            if 'text' not in data or not data['text'][0].isupper():
-                continue
-
-            data['text'] = data['text'].replace(", (),", "")
-            data['text'] = data['text'].replace("() ", "")
             level = random.randint(0, 9)
             data['corrupt'] = corrupt_paragraph(data['text'], level)
             data['corrupt_level'] = level

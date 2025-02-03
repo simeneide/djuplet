@@ -118,6 +118,10 @@ def extract_paragraphs_from_page(wiki_text: str, min_words: int) -> list:
       - Contain fewer than the specified minimum number of words.
       - Do not end with a valid punctuation mark (., !, ?, ,).
       - Contain undesirable patterns (e.g., ellipses, thumbnail markers).
+      - Do not start with an uppercase letter.
+      
+    Additionally, it performs text replacements to clean up oddities:
+      - Removes occurrences of ", ()," and "() ".
     
     Parameters:
         wiki_text (str): The raw wikitext of the page.
@@ -161,6 +165,11 @@ def extract_paragraphs_from_page(wiki_text: str, min_words: int) -> list:
     valid_endings = {'.', '!', '?', ','}
     paragraphs = []
     for p in raw_paragraphs:
+        # Perform replacements to clean up oddities
+        p = p.replace(", (),", "").replace("() ", "")
+        # Ensure paragraph starts with an uppercase letter
+        if not p[0].isupper():
+            continue
         # Skip paragraphs that start with a parenthesis
         if p.startswith("("):
             continue
@@ -296,4 +305,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
