@@ -40,7 +40,7 @@ Parameters:
 Run the `corrupt_paragraphs.py` script to add corrupted versions of the paragraphs:
 
 ```bash
-python corrupt_paragraphs.py --input_file norwegian.jsonl --output_file norwegian_corrupt.jsonl
+python corrupt_paragraphs.py --input_file ../data/norwegian.jsonl --output_file ../data/norwegian_corrupt.jsonl
 ```
 
 This script reads each JSON record from norwegian.jsonl, randomly selects a corruption level (0–9), and adds two new fields:
