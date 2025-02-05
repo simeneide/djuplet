@@ -45,8 +45,8 @@ def split_and_save(input_file: str, output_dir: str):
     and saves each split in the output directory along with a dataset_info.json file.
 
     Fixed splits:
-       - test.jsonl: 1 sample
-       - validation.jsonl: 1 sample
+       - test.jsonl: 250 sample
+       - validation.jsonl: 250 sample
        - train.jsonl: remaining samples
 
     Parameters:
@@ -70,8 +70,8 @@ def split_and_save(input_file: str, output_dir: str):
     logging.debug(f"Shuffled {total_samples} samples.")
 
     # Define fixed split counts.
-    test_count = 1
-    validation_count = 1
+    test_count = 250
+    validation_count = 250
     train_count = total_samples - (test_count + validation_count)
     logging.debug(f"Splitting dataset: train={train_count}, validation={validation_count}, test={test_count}")
 

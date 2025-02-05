@@ -47,7 +47,7 @@ def process_jsonl(input_path: Path, output_path: Path, prompt_template: str):
 
                 # Build the prompt string
                 prompt = f"{prompt_template}{corrupt}<think>{reasoning}</think>{original_text}"
-                record["prompt"] = prompt
+                record["text"] = prompt
 
                 outfile.write(json.dumps(record, ensure_ascii=False) + "\n")
                 logging.debug(f"Processed line {line_number}")
@@ -57,7 +57,7 @@ def process_jsonl(input_path: Path, output_path: Path, prompt_template: str):
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Process a JSONL file and add a 'prompt' field to each record."
+        description="Process a JSONL file and add a 'text' key with the prompt to each record."
     )
     parser.add_argument(
         "--input_file", required=True,
