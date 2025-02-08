@@ -1,6 +1,7 @@
+#%%
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 import logging
 import os
@@ -12,7 +13,8 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers import AutoTokenizer
 from datasets import load_dataset
 from trl import GRPOConfig, GRPOTrainer, get_peft_config, ModelConfig, TrlParser
-
+import yaml
+#%%
 
 ########################
 # Custom dataclasses
@@ -261,13 +263,28 @@ def grpo_function(
     logger.info("*** Training complete! ***")
 
 
-def main():
-    parser = TrlParser((ModelConfig, ScriptArguments, GRPOConfig))
-    model_args, script_args, training_args = parser.parse_args_and_config()
+def load_config(yaml_file: str) -> dict:
+    """Load configuration from a YAML file."""
+    with open(yaml_file, "r") as f:
+        config = yaml.safe_load(f)
+    return config
 
+def filter_dataclass_args(dataclass_cls, config):
+    """
+    Filters a configuration dictionary and returns only the keys
+    that are valid fields for the given dataclass.
+    """
+    allowed_fields = {field.name for field in fields(dataclass_cls)}
+    return {key: value for key, value in config.items() 
+            if key in allowed_fields and value is not None}
+def main():
+    config = load_config("grpo-qwen-2.5-3b-deepseek-r1-countdown.yaml")
+
+    model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
+    script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
+    training_args  = GRPOConfig(**filter_dataclass_args(GRPOConfig, config))
     # Run the main training loop
     grpo_function(model_args, script_args, training_args)
-
 
 if __name__ == "__main__":
     main()
