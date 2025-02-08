@@ -16,9 +16,9 @@ This repository provides the files for creating a reasoning dataset. The input t
 
 5. **Create MaxText Training Set**
    This is an optional step. 
-   -- Clone the newly created repo
-   -- `mkdir shards`
-   -- `split -n l/16 -d --additional-suffix=.jsonl train.jsonl shards/train_part_`
-   -- `split -n l/16 -d --additional-suffix=.jsonl validation.jsonl shards/validation_part_`
-   -- `split -n l/16 -d --additional-suffix=.jsonl test.jsonl shards/test_part_`
-   -- `gsutil -m cp *.* gs://[mybucket]/wiki_reasoning_english/`
+   - Clone the newly created repo
+   - `mkdir shards`
+   - `split -n l/16 -d --additional-suffix=.jsonl train.jsonl shards/train_part_`
+   - `split -n l/16 -d --additional-suffix=.jsonl validation.jsonl shards/validation_part_`
+   - `split -n l/16 -d --additional-suffix=.jsonl test.jsonl shards/test_part_`
+   - `gsutil -m cp *.* gs://[mybucket]/wiki_reasoning_english/`
