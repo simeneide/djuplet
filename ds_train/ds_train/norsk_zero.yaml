@@ -1,11 +1,11 @@
 # Model arguments
-model_name_or_path: pere/nb-llama-3.2-3B #Qwen/Qwen2.5-3B-Instruct
+model_name_or_path: Qwen/Qwen2.5-3B-Instruct # pere/nb-llama-3.2-3B #
 model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 bf16: true
 tf32: true
-output_dir: logs/
+output_dir: logs/norsk_zero
 # Dataset arguments
 dataset_id_or_path: pere/norwegian_reasoning
 
