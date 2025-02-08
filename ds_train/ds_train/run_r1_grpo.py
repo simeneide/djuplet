@@ -42,7 +42,7 @@ logger.addHandler(handler)
 # Helper functions
 ########################
 
-def format_reward_func(completions, target, **kwargs):
+def format_reward_func(completions, **kwargs):
     """
     Format: <think>...</think><answer>...</answer>
     Args:
@@ -51,10 +51,11 @@ def format_reward_func(completions, target, **kwargs):
       
       Returns:
           list[float]: Reward scores
+    # completion = " dette er </think> tull <answer>1</answer>"
     """
     rewards = []
 
-    for completion, gt in zip(completions, target):
+    for completion, gt in zip(completions):
 
       try:
         # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
@@ -67,7 +68,7 @@ def format_reward_func(completions, target, **kwargs):
             f.write(completion)
         
         # Check if the format is correct
-        regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>\n<answer>([\s\S]*?)<\/answer>$"
+        regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>[\s\S]*?<answer>([\s\S]*?)<\/answer>$"
 
         match = re.search(regex, completion, re.DOTALL) 
         # if the format is not correct, reward is 0
@@ -135,6 +136,52 @@ def equation_reward_func(completions, target, nums, **kwargs):
             rewards.append(0.0) 
     return rewards
 
+from jiwer import wer
+def corrupt_reward_func(completions, original_text, **kwargs):
+    """
+    Evaluates completions based on:
+    2. Mathematical correctness of the answer
+
+    Args:
+        completions (list[str]): Generated outputs
+        target (list[str]): Expected answers
+        nums (list[str]): Available numbers
+    
+    Returns:
+        list[float]: Reward scores
+    """
+    rewards = []
+    for completion, ground_truth, numbers in zip(completions, original_text):
+      try:
+        # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
+        completion = "<think>" + completion
+        # Check if the format is correct
+        match = re.search(r"<answer>(.*?)<\/answer>", completion)
+        if match is None:
+            rewards.append(0.0)
+            continue
+        # Extract the "answer" part from the completion
+        generated_answer = match.group(1).strip()
+        # Extract all numbers from the equation
+        error_rate = wer(generated_answer, ground_truth)
+        r = min(1.0, max(0.0, 1- error_rate))
+        rewards.append(r)
+        # Check if the equation is correct and matches the ground truth
+        if r==1.0:
+            if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
+                os.makedirs("completion_samples", exist_ok=True)
+                log_file = os.path.join("completion_samples", "success_completion_samples.txt")
+                with open(log_file, "a") as f:
+                    f.write(f"\n\n==============\n")
+                    f.write(completion)
+
+      except Exception as e:
+            print(e)
+            # If evaluation fails, reward is 0
+            rewards.append(0.0) 
+    return rewards
+
+
 def get_checkpoint(training_args: GRPOConfig):
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir):
@@ -170,38 +217,31 @@ def grpo_function(
     # Load datasets
     ###############
     # Load dataset from Hugging Face Hub
-    dataset = load_dataset(script_args.dataset_id_or_path, split=script_args.dataset_splits)
+    dataset = load_dataset(script_args.dataset_id_or_path)
     # select a random subset of 50k samples
-    dataset = dataset.shuffle(seed=42).select(range(50000))
+    #dataset = dataset.shuffle(seed=42).select(range(50000))
 
     #####################
     # Prepare and format dataset
     #####################
 
+    # Read prompt template
+    template_path = "../../templates/prompt_template.txt"
+    with open(template_path, 'r') as file:
+        prompt_template = file.read()
+
+
     # gemerate r1 prompt with a prefix for the model to already start with the thinking process
-    def generate_r1_prompt(numbers, target):
-        r1_prefix = [{
-            "role": "system",
-            "content": "You are a helpful assistant. You first thinks about the reasoning process in the mind and then provides the user with the answer."
-          },
-          { 
-            "role": "user",
-            "content": f"Using the numbers {numbers}, create an equation that equals {target}. You can use basic arithmetic operations (+, -, *, /) one or multiple times but each number can only be used once. Show your work in <think> </think> tags. And return the final equation in <answer> </answer> tags, for example <answer> (1 + 2) / 3 </answer>. Think step by step inside <think> tags."
-          },
-          {
-            "role": "assistant",
-            "content": "Let me solve this step by step.\n<think>"
-          }]
-        return {"prompt": tokenizer.apply_chat_template(r1_prefix, tokenize=False, continue_final_message=True), "target": target, "nums": numbers}
+    def generate_r1_prompt(corrupt, original_text):
+
+        prompt = f"""{prompt_template} {corrupt} <think> """
+
+        return {"prompt": prompt, "corrupt": corrupt, "original_text": original_text}
 
     # convert our dataset to the r1 prompt
-    dataset = dataset.map(lambda x: generate_r1_prompt(x["nums"], x["target"]))
+    dataset = dataset.map(lambda x: generate_r1_prompt(x["corrupt"], x["original_text"]))
 
-    # split the dataset into train and test
-    train_test_split = dataset.train_test_split(test_size=0.1)
 
-    train_dataset = train_test_split["train"]
-    test_dataset = train_test_split["test"]
 
     #########################
     # Instantiate DPO trainer
@@ -209,10 +249,10 @@ def grpo_function(
 
     trainer = GRPOTrainer(
       model=model_args.model_name_or_path,
-      reward_funcs=[format_reward_func, equation_reward_func],
+      reward_funcs=[format_reward_func, corrupt_reward_func],
       args=training_args,
-      train_dataset=train_dataset,
-      eval_dataset=test_dataset,
+      train_dataset=dataset['train'],
+      eval_dataset=dataset['validation'],
       peft_config=get_peft_config(model_args),
     )
 
@@ -277,14 +317,13 @@ def filter_dataclass_args(dataclass_cls, config):
     allowed_fields = {field.name for field in fields(dataclass_cls)}
     return {key: value for key, value in config.items() 
             if key in allowed_fields and value is not None}
-def main():
-    config = load_config("grpo-qwen-2.5-3b-deepseek-r1-countdown.yaml")
+
+if __name__ == "__main__":
+    config = load_config("norsk.yaml")
 
     model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
     script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
     training_args  = GRPOConfig(**filter_dataclass_args(GRPOConfig, config))
     # Run the main training loop
     grpo_function(model_args, script_args, training_args)
-
-if __name__ == "__main__":
-    main()
+# %%

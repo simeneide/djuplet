@@ -24,6 +24,7 @@ dependencies = [
     "hf-transfer (>=0.1.9,<0.2.0)",
     "trl>=0.14.0",
     "vllm>=0.7.2",
+    "jiwer>=3.1.0",
 ]
 
 
