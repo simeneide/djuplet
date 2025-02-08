@@ -46,7 +46,7 @@ def process_jsonl(input_path: Path, output_path: Path, prompt_template: str):
                 original_text = record.get("original_text", "")
 
                 # Build the prompt string
-                prompt = f"{prompt_template}{corrupt}<think>{reasoning}</think>{original_text}"
+                prompt = f"{prompt_template}{corrupt} <|think|> {reasoning} <|/think|> <|answer|> {original_text} <|/answer|>"
                 record["text"] = prompt
 
                 outfile.write(json.dumps(record, ensure_ascii=False) + "\n")
