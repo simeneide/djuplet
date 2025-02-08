@@ -1,7 +1,7 @@
 #%%
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 import logging
 import os
