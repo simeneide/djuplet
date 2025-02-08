@@ -21,4 +21,9 @@ This repository provides the files for creating a reasoning dataset. The input t
    - `split -n l/16 -d --additional-suffix=.jsonl train.jsonl shards/train_part_`
    - `split -n l/16 -d --additional-suffix=.jsonl validation.jsonl shards/validation_part_`
    - `split -n l/16 -d --additional-suffix=.jsonl test.jsonl shards/test_part_`
-   - `gsutil -m cp *.* gs://[mybucket]/wiki_reasoning_english/`
+   - `for i in {1..5}; do cat train.jsonl; done | shuf > train5.jsonl`
+   - `split -n l/16 -d --additional-suffix=.jsonl train5.jsonl shards/train5_part_`
+   - `for i in {1..10}; do cat train.jsonl; done | shuf > train10.jsonl`
+   - `split -n l/16 -d --additional-suffix=.jsonl train10.jsonl shards/train10_part_`
+   - `cd shards`
+   - `gsutil -m cp *.* gs://[mybucket]/wiki_reasoning_english_v3/`
