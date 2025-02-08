@@ -55,7 +55,7 @@ def format_reward_func(completions, **kwargs):
     """
     rewards = []
 
-    for completion, gt in zip(completions):
+    for completion in completions:
 
       try:
         # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
@@ -151,7 +151,7 @@ def corrupt_reward_func(completions, original_text, **kwargs):
         list[float]: Reward scores
     """
     rewards = []
-    for completion, ground_truth, numbers in zip(completions, original_text):
+    for completion, ground_truth in zip(completions, original_text):
       try:
         # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
         completion = "<think>" + completion
@@ -209,7 +209,9 @@ def grpo_function(
         ),
         revision=model_args.model_revision,
         trust_remote_code=model_args.trust_remote_code,
+        padding_side="left",
     )
+    tokenizer.pad_token = tokenizer.eos_token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -241,14 +243,13 @@ def grpo_function(
     # convert our dataset to the r1 prompt
     dataset = dataset.map(lambda x: generate_r1_prompt(x["corrupt"], x["original_text"]))
 
-
-
     #########################
     # Instantiate DPO trainer
     #########################
 
     trainer = GRPOTrainer(
       model=model_args.model_name_or_path,
+      processing_class=tokenizer,
       reward_funcs=[format_reward_func, corrupt_reward_func],
       args=training_args,
       train_dataset=dataset['train'],
@@ -319,7 +320,7 @@ def filter_dataclass_args(dataclass_cls, config):
             if key in allowed_fields and value is not None}
 
 if __name__ == "__main__":
-    config = load_config("norsk.yaml")
+    config = load_config("norsk_zero.yaml")
 
     model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
     script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
