@@ -181,3 +181,8 @@ data/
 runs/
 wandb/
 completion_samples/
+*.json
+*.bin
+*.safetensors
+logs/
+*.lock
