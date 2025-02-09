@@ -41,6 +41,38 @@ logger.addHandler(handler)
 ########################
 # Helper functions
 ########################
+from langdetect import detect, DetectorFactory, detect_langs
+def language_reward(completions, **kwargs):
+    """
+    Checks whether the thinking part of the completion is in Norwegian.
+    Assumes that the generated string starts with "<think>".
+    
+    Args:
+        completions = [" dette er en stor tanke </think> tull <answer>1</answer> </answer> </answer>"] #Generated completions.
+    
+    Returns:
+        list[float]: Reward scores (1.0 if Norwegian, otherwise 0.0).
+    """
+    DetectorFactory.seed = 0  # for reproducible results
+    
+    rewards = []
+    for text in completions:
+        try:
+            completion = "<think>" + text
+            # Extract the content within the <think>...</think> tags
+            match = re.search(r"<think>([\s\S]*?)</think>", completion, re.DOTALL)
+            if match:
+                think_content = match.group(1).strip()
+                if think_content:
+                    detected_lang = detect(think_content)
+                    rewards.append(1.0 if detected_lang == "no" else 0.0)
+                else:
+                    rewards.append(0.0)
+            else:
+                rewards.append(0.0)
+        except Exception:
+            rewards.append(0.0)
+    return rewards
 
 def format_reward_func(completions, **kwargs):
     """
@@ -51,7 +83,7 @@ def format_reward_func(completions, **kwargs):
       
       Returns:
           list[float]: Reward scores
-    # completion = " dette er </think> tull <answer>1</answer>"
+    # completion = " dette er </think> tull <answer>1</answer> </answer> </answer>"
     """
     rewards = []
 
@@ -69,7 +101,6 @@ def format_reward_func(completions, **kwargs):
         
         # Check if the format is correct
         regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>[\s\S]*?<answer>([\s\S]*?)<\/answer>$"
-
         match = re.search(regex, completion, re.DOTALL) 
         # if the format is not correct, reward is 0
         if match is None or len(match.groups()) != 2:
@@ -297,7 +328,7 @@ def grpo_function(
     trainer = GRPOTrainer(
       model=model_args.model_name_or_path,
       processing_class=tokenizer,
-      reward_funcs=[format_reward_func, corrupt_reward_func, corrupt_reward_binary_func],
+      reward_funcs=[format_reward_func, corrupt_reward_func, corrupt_reward_binary_func, language_reward],
       args=training_args,
       train_dataset=dataset['train'],
       eval_dataset=dataset['validation'],
@@ -368,10 +399,12 @@ def filter_dataclass_args(dataclass_cls, config):
 
 if __name__ == "__main__":
     config = load_config("norsk_zero.yaml")
+    #config = load_config("norsk_warmstart.yaml")
 
     model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
     script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
     training_args  = GRPOConfig(**filter_dataclass_args(GRPOConfig, config))
     # Run the main training loop
     grpo_function(model_args, script_args, training_args)
+
 # %%
