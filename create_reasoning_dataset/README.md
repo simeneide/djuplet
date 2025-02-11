@@ -6,7 +6,7 @@ This repository provides the files for creating a reasoning dataset. The input t
    `wget https://huggingface.co/datasets/pere/wiki_paragraphs_norwegian/raw/main/pretrain.jsonl` downloads 10k Wikipedia paragraphs.
 
 2. **Fetch DeepSeek Reasoning Data**  
-   `python fetch_deepseek_reasoning_data.py --input_file pretrain.jsonl` fetched reasoning data from DeepSeek and stores them in `pretrain_procssed.jsonl`. You can edit or change the template file used for this prompt.
+   `python fetch_deepseek_reasoning_data.py --input_file pretrain.jsonl --immediate --stream --processes 20` fetched reasoning data from DeepSeek and stores them in `pretrain_procssed.jsonl`. You can edit or change the template file used for this prompt.
 
 3. **Build Prompt**  
    `python build_prompt.py --input_file pretrain_processed.jsonl --output_file pretrain_prompt.jsonl` builds the prompt and adds it to the jsonlines file. You can edit or change the template file used for this prompt.
