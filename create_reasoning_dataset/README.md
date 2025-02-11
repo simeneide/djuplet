@@ -8,8 +8,8 @@ This repository provides the files for creating a reasoning dataset. The input t
 2. **Fetch DeepSeek Reasoning Data**  
    `python fetch_deepinfra_reasoning_data.py --input_file pretrain.jsonl --immediate --stream --processes 20` fetched reasoning data from DeepSeek and stores them in `pretrain_procssed.jsonl`. You can edit or change the template file used for this prompt.
 3. **Find Good Data**
-   `python filter_norwegian.py --input_file ../data/norwegian15000_processed.jsonl --output_file ../data/norwegian15000_cleannorwegian.jsonl`- Filter out Norwegian data only
-   `jq -c 'select(.original_text != .text_result)' ../data/norwegian15000_cleannorwegian.jsonl | head -n 6745 > ../data/norwegian15000_filtered.jsonl` - Filter out error - trim to same length as English
+   - `python filter_norwegian.py --input_file ../data/norwegian15000_processed.jsonl --output_file ../data/norwegian15000_cleannorwegian.jsonl`- Filter out Norwegian data only
+   - `jq -c 'select(.original_text != .text_result)' ../data/norwegian15000_cleannorwegian.jsonl | head -n 6745 > ../data/norwegian15000_filtered.jsonl` - Filter out error - trim to same length as English
 
 4. **Build Prompt**  
    `python build_prompt.py --input_file pretrain_processed.jsonl --output_file pretrain_prompt.jsonl` builds the prompt and adds it to the jsonlines file. You can edit or change the template file used for this prompt.
