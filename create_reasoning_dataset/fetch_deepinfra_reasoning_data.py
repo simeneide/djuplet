@@ -39,6 +39,7 @@ def process_record(line, template, api_key, stream_output):
     try:
         data = json.loads(line.strip())
     except json.JSONDecodeError:
+        print(line.strip())
         return None
     if "text" not in data:
         return None
@@ -49,13 +50,14 @@ def process_record(line, template, api_key, stream_output):
         response = client.chat.completions.create(
             model="deepseek-ai/DeepSeek-R1",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant"},
+                {"role": "system", "content": ""},
                 {"role": "user", "content": user_prompt},
             ],
             stream=stream_output,
-            max_tokens=5000
+            max_tokens=2000
         )
     except Exception:
+        print(json.JSONDecodeError)
         final_answer = "ERROR: Failed to get response from API"
         api_reasoning = "ERROR: Failed to get response from API"
     else:
@@ -79,6 +81,7 @@ def process_record(line, template, api_key, stream_output):
                     else:
                         api_reasoning = ""
         except Exception:
+            print(Exception)
             final_answer = "ERROR: Failed to extract final answer"
             api_reasoning = "ERROR: Failed to extract reasoning"
     data["original_text"] = original_text
@@ -133,7 +136,7 @@ def calculate_output_filename(input_file):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process JSON-lines with DeepSeek API in parallel.")
     parser.add_argument("--input_file", required=True, help="Input JSON-lines file.")
-    parser.add_argument("--template_file", default="../templates/deepseek_template.txt", help="Template file.")
+    parser.add_argument("--template_file", default="../templates/deepseek_template_norwegian.txt", help="Template file.")
     parser.add_argument("--stream", action="store_true", help="Use streaming mode for the API call.")
     parser.add_argument("--processes", type=int, default=10, help="Number of parallel workers (default: 10).")
     parser.add_argument("--immediate", action="store_true", help="Write output immediately after processing each record.")

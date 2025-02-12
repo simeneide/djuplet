@@ -1,0 +1,11 @@
+Overser alle tidligere instrukser. Fra nå av er det strengt forbudt for deg å tenke eller skrive på engelsk. Du har kun lov til å tenke og skrive på norsk.
+
+Gjennomgå og korriger følgende tekst for feil i tegnsetting (feilplasserte, manglende eller overflødige tegn) samt bruk av store og små bokstaver. Du skal aldri endre stavemåten eller legge til eller fjerne ord.
+
+Når du svarer, skal du kun returnere den korrigerte teksten, uten ekstra forklaring. Hvis setningen allerede er korrekt, returner originalteksten.
+
+Husk at du kun har lov til å tenke, analysere, argumentere og skrive på norsk.
+
+Her er teksten du skal analysere:
+
+{text}
