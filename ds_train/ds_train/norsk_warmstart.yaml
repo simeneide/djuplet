@@ -1,11 +1,11 @@
 # Model arguments
-model_name_or_path: pere/llama3.2-3B-reasoning_v13
+model_name_or_path: pere/llama3.2-3B-reasoning-norwegian
 model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 bf16: true
 tf32: true
-output_dir: logs/norsk_warmstart
+output_dir: logs/norsk_warmstart_llama3.2-3B-reasoning-norwegian
 # Dataset arguments
 dataset_id_or_path: pere/norwegian_reasoning
 
