@@ -13,13 +13,13 @@ dataset_id_or_path: pere/norwegian_reasoning
 # No LoRA is used here
 
 # Training arguments
-max_steps: 450
+max_steps: 1000
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 24
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
-learning_rate: 0.0 #5.0e-7 # 1.0e-6 as in the deepseek math paper 5-e7 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
+learning_rate: 5.0e-7 # 1.0e-6 as in the deepseek math paper 5-e7 from https://hijkzzz.notion.site/unraveling-rlhf-and-its-variants-engineering-insights#147d9a33ecc9806090f3d5c749d31f05
 lr_scheduler_type: cosine
 warmup_ratio: 0.03
 # GRPO specific parameters
@@ -36,8 +36,8 @@ logging_strategy: steps
 logging_steps: 2
 report_to:
 - tensorboard
-save_strategy: "best"
-metric_for_best_model: "train/reward"
+save_strategy: "steps"
+save_total_limit: 3
 save_steps: 25
 seed: 42
 
