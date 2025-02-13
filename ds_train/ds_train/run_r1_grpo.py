@@ -306,7 +306,7 @@ def grpo_function(
     #####################
 
     # Read prompt template
-    template_path = "../../templates/prompt_template.txt"
+    template_path = "../../templates/prompt_template_norwegian.txt"
     with open(template_path, 'r') as file:
         prompt_template = file.read()
 
@@ -398,8 +398,8 @@ def filter_dataclass_args(dataclass_cls, config):
             if key in allowed_fields and value is not None}
 
 if __name__ == "__main__":
-    config = load_config("norsk_zero.yaml")
-    #config = load_config("norsk_warmstart.yaml")
+    #config = load_config("norsk_zero.yaml")
+    config = load_config("norsk_warmstart.yaml")
 
     model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
     script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
