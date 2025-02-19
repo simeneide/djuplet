@@ -5,6 +5,7 @@ from jax import lax
 from jax import numpy as jnp
 from transformers import AutoTokenizer
 import easydel as ed
+from jiwer import wer
 
 repo_id = "pere/llama3.2-3B-chat-reasoning-norwegian"
 #repo_id = "qwen/qwen2-0.5b-instruct"
@@ -55,6 +56,22 @@ XML_COT_FORMAT = """\
 </answer>
 """
 
+def extract_chat_messages(text: str) -> dict:
+    """
+    Extracts messages from a text formatted with header markers.
+    Returns a dictionary with roles (e.g. 'user', 'assistant') as keys
+    and the corresponding message content as values.
+    
+    The text is expected to have messages delimited by markers:
+    <|start_header_id|>role<|end_header_id|> message <|eot_id|>
+    """
+    pattern = r"<\|start_header_id\>(.*?)<\|end_header_id\>\s*(.*?)\s*<\|eot_id\>"
+    matches = re.findall(pattern, text, flags=re.DOTALL)
+    messages = {}
+    for role, content in matches:
+        role = role.strip().lower()
+        messages[role] = content.strip()
+    return messages
 
 def extract_xml_answer(text: str) -> str:
     answer = text.split("<answer>")[-1]
@@ -87,19 +104,27 @@ def get_norwegian_questions(split="train") -> Dataset:
         lambda x: {
             "prompt": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": x["question"]},
+                {"role": "user", "content": extract_chat_messages(x["text"]).get("user", "")},
             ],
-            "answer": extract_hash_answer(x["text_result"]),
+            "answer": extract_chat_messages(x["text"]).get("assistant", ""),
         }
     )
     return data
 
-
 def correctness_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
+    # Extract the generated assistant responses and isolate the final answer from each.
     responses = [completion[0]["content"] for completion in completions]
     extracted_responses = [extract_xml_answer(r) for r in responses]
-    answer = processor.batch_decode(batch["answer_ids"]) * num_return_sequences
-    return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, answer)]
+
+    # Decode the reference answers from token ids, then extract only the text within the <answer> tags.
+    decoded_answers = processor.batch_decode(batch["answer_ids"])
+    extracted_answers = [extract_xml_answer(a) for a in decoded_answers]
+
+    # If needed, replicate each correct answer to match the number of returned sequences.
+    replicated_answers = extracted_answers * num_return_sequences
+
+    # Compare the extracted final answers.
+    return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, replicated_answers)]
 
 
 def int_reward_func(completions, **kwargs) -> list[float]:
