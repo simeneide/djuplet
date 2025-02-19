@@ -34,15 +34,17 @@ model = ed.AutoEasyDeLModelForCausalLM.from_pretrained(
     quantization_method=ed.EasyDeLQuantizationMethods.NONE,
 )
 
-SYSTEM_PROMPT = """
-Respond in the following format:
-<think>
-...
-</think>
-<answer>
-...
-</answer>
-"""
+#SYSTEM_PROMPT = """
+#Respond in the following format:
+#<think>
+#...
+#</think>
+#<answer>
+#...
+#</answer>
+#"""
+
+SYSTEM_PROMPT = ""
 
 XML_COT_FORMAT = """\
 <think>
@@ -75,6 +77,19 @@ def get_gsm8k_questions(split="train") -> Dataset:
                 {"role": "user", "content": x["question"]},
             ],
             "answer": extract_hash_answer(x["answer"]),
+        }
+    )
+    return data
+
+def get_norwegian_questions(split="train") -> Dataset:
+    data = load_dataset("pere/reasoning_chat_norwegian")[split]
+    data = data.map(
+        lambda x: {
+            "prompt": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": x["question"]},
+            ],
+            "answer": extract_hash_answer(x["text_result"]),
         }
     )
     return data
