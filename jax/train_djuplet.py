@@ -85,19 +85,6 @@ def extract_hash_answer(text: str):
     return text.split("####")[1].strip()
 
 
-def get_gsm8k_questions(split="train") -> Dataset:
-    data = load_dataset("openai/gsm8k", "main")[split]
-    data = data.map(
-        lambda x: {
-            "prompt": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": x["question"]},
-            ],
-            "answer": extract_hash_answer(x["answer"]),
-        }
-    )
-    return data
-
 def get_norwegian_questions(split="train") -> Dataset:
     data = load_dataset("pere/reasoning_chat_norwegian")[split]
     data = data.map(
@@ -170,7 +157,7 @@ def xmlcount_reward_func(completions, **kwargs) -> list[float]:
 
 
 arguments = ed.GRPOConfig(
-    save_directory="/home/perk/easyex/output",
+    save_directory="/home/perk/djuplet/jax/output",
     max_prompt_length=max_prompt_length,
     max_completion_length=max_completion_length,
     num_train_epochs=1,
@@ -184,8 +171,8 @@ arguments = ed.GRPOConfig(
     do_eval=False,
 )
 
-train_dataset = get_gsm8k_questions("train")
-test_dataset = get_gsm8k_questions("test")
+train_dataset = get_norwegian_questions("train")
+test_dataset = get_norwegian_questions("test")
 vinference = ed.vInference(
     model=model,
     processor_class=processor,
