@@ -1,5 +1,5 @@
 import re
-
+import random
 from datasets import Dataset, load_dataset
 from jax import lax
 from jax import numpy as jnp
@@ -98,6 +98,17 @@ def get_norwegian_questions(split="train") -> Dataset:
     )
     return data
 
+def debug_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
+    breakpoint()
+    # With roughly a 1 in 100 chance, print all completions for debugging.
+    if random.randint(1, 10) == 10:
+        for i, completion in enumerate(completions):
+            print(f"Completion {i}:")
+            print(completion[0]["content"])
+            print("-" * 40)
+    # Return a neutral reward to avoid influencing training.
+    return [0.0 for _ in completions]
+
 def correctness_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
     # Extract the generated assistant responses and isolate the final answer from each.
     responses = [completion[0]["content"] for completion in completions]
@@ -135,6 +146,33 @@ def soft_format_reward_func(completions, **kwargs) -> list[float]:
     matches = [re.match(pattern, r) for r in responses]
     return [0.5 if match else 0.0 for match in matches]
 
+def wer_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
+    """
+    Computes a reward based on the Word Error Rate (WER) between the generated answer and the ground truth answer.
+    The final reward is calculated as: r = min(1.0, max(0.0, 1 - error_rate)).
+    
+    Both generated and ground truth answers are extracted using the extract_xml_answer function to ensure only the text
+    inside <answer> and </answer> is considered.
+    """
+    # Extract the generated responses and isolate the final answer.
+    responses = [completion[0]["content"] for completion in completions]
+    generated_answers = [extract_xml_answer(r) for r in responses]
+    
+    # Decode the ground truth answers from token ids, then extract only the text within the <answer> tags.
+    decoded_answers = processor.batch_decode(batch["answer_ids"])
+    ground_truth_answers = [extract_xml_answer(a) for a in decoded_answers]
+    
+    # Replicate each ground truth answer to match the number of returned sequences.
+    replicated_ground_truth = ground_truth_answers * num_return_sequences
+    
+    rewards = []
+    for gen, gt in zip(generated_answers, replicated_ground_truth):
+        # Compute error rate using jiwer's wer function.
+        error_rate = wer(gen, gt)
+        # Calculate reward ensuring it is within the range [0.0, 1.0].
+        reward = min(1.0, max(0.0, 1 - error_rate))
+        rewards.append(reward)
+    return rewards
 
 def count_xml(text) -> float:
     count = 0.0
@@ -231,6 +269,8 @@ trainer = ed.GRPOTrainer(
         strict_format_reward_func,
         int_reward_func,
         correctness_reward_func,
+        wer_reward_func,
+        debug_reward_func,
     ],
     processing_class=processor,
     eval_dataset=test_dataset,
