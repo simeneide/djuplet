@@ -11,8 +11,8 @@ repo_id = "pere/llama3.2-3B-chat-reasoning-norwegian"
 #repo_id = "qwen/qwen2-0.5b-instruct"
 total_batch_size = 4
 num_return_sequences = 4
-max_prompt_length = 256
-max_completion_length = 256
+max_prompt_length = 512
+max_completion_length = 1024
 max_sequence_length = max_completion_length + max_prompt_length
 
 processor = AutoTokenizer.from_pretrained(repo_id)
@@ -56,29 +56,38 @@ XML_COT_FORMAT = """\
 </answer>
 """
 
-def extract_chat_messages(text: str) -> dict:
-    """
-    Extracts messages from text formatted with header markers.
-    
-    Expected format:
-    <|start_header_id|>role<|end_header_id|>
-    message content
-    <|eot_id|>
-    
-    Returns a dict mapping roles (e.g. 'user', 'assistant') to their message content.
-    """
-    start_marker = re.escape("<|start_header_id|>")
-    end_marker = re.escape("<|end_header_id|>")
-    eot_marker = re.escape("<|eot_id|>")
-    
-    pattern = start_marker + r"(.*?)" + end_marker + r"(.*?)" + eot_marker
-    matches = re.findall(pattern, text, flags=re.DOTALL)
-    
-    messages = {}
-    for role, content in matches:
-        messages[role.strip().lower()] = content.strip()
-    return messages
 
+def split_llama3_text(text: str) -> tuple[str, str]:
+    """
+    Splits a raw llama3-chat formatted text into prompt and answer parts.
+    Assumes that the assistant’s block starts with:
+      <|start_header_id|>assistant<|end_header_id|>
+    and that its content ends at the next <|eot_id|>.
+    
+    Returns:
+        prompt: Everything before the assistant marker.
+        answer: The assistant block (trimmed up to the first <|eot_id|> after the marker).
+    """
+    assistant_marker = "<|start_header_id|>assistant<|end_header_id|>"
+    parts = text.split(assistant_marker, 1)
+    if len(parts) < 2:
+        # If no assistant block is found, return the whole text as prompt.
+        return text.strip(), ""
+    prompt = parts[0].strip()
+    remainder = parts[1].strip()
+    # Remove any trailing end-of-text marker from the assistant part.
+    answer = remainder.split("<|eot_id|>", 1)[0].strip()
+    return prompt, answer
+
+def get_norwegian_questions(split="train") -> Dataset:
+    data = load_dataset("pere/reasoning_chat_norwegian")[split]
+    data = data.map(
+        lambda x: {
+            "prompt": split_llama3_text(x["text"])[0],
+            "answer": split_llama3_text(x["text"])[1],
+        }
+    )
+    return data
 
 def extract_xml_answer(text: str) -> str:
     answer = text.split("<answer>")[-1]
@@ -91,73 +100,48 @@ def extract_hash_answer(text: str):
         return None
     return text.split("####")[1].strip()
 
-def get_norwegian_questions(split="train") -> Dataset:
-    data = load_dataset("pere/reasoning_chat_norwegian")[split]
-
-    def format_chat(x):
-        user_message = extract_chat_messages(x["text"]).get("user", "")
-        assistant_message = extract_chat_messages(x["text"]).get("assistant", "")
-        messages = [
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": assistant_message},
-        ]
-
-        chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-
-        return {
-            "prompt": chat_text,
-            "answer": assistant_message,  # Keep structured format
-        }
-
-    data = data.map(format_chat)
-    return data
-
 
 def debug_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
     # With roughly a 1 in 10 chance, print all completions for debugging.
-    if random.randint(1, 10) == 10:
+    if random.randint(1, 100) == 100:
         for i, completion in enumerate(completions):
             print(f"Completion {i}:")
-            print(completion[0]["content"])
+            print(completion[0])
             print("-" * 40)
     # Return a neutral reward to avoid influencing training.
     return [0.0 for _ in completions]
 
 def correctness_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
-    # Extract the generated assistant responses and isolate the final answer from each.
-    responses = [completion[0]["content"] for completion in completions]
-    extracted_responses = [extract_xml_answer(r) for r in responses]
+    # Extract the assistant's final answer from the generated completions.
+    extracted_responses = [extract_xml_answer(c) for c in completions]
 
-    # Decode the reference answers from token ids, then extract only the text within the <answer> tags.
+    # Decode the reference answers from token ids and extract the text within the <answer> tags.
     decoded_answers = processor.batch_decode(batch["answer_ids"])
     extracted_answers = [extract_xml_answer(a) for a in decoded_answers]
 
-    # If needed, replicate each correct answer to match the number of returned sequences.
+    # Replicate each reference answer to match the number of returned sequences.
     replicated_answers = extracted_answers * num_return_sequences
 
-    # Compare the extracted final answers.
-    return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, replicated_answers)]
+    # Compare the generated responses with the replicated reference answers.
+    return [2.0 if response == reference else 0.0 for response, reference in zip(extracted_responses, replicated_answers)]
 
 
 def int_reward_func(completions, **kwargs) -> list[float]:
-    responses = [completion[0]["content"] for completion in completions]
-    extracted_responses = [extract_xml_answer(r) for r in responses]
+    extracted_responses = [extract_xml_answer(c) for c in completion]
     return [0.5 if r.isdigit() else 0.0 for r in extracted_responses]
 
 
 def strict_format_reward_func(completions, **kwargs) -> list[float]:
     """Reward function that checks if the completion has a specific format."""
     pattern = r"^<think>\n.*?\n</think>\n<answer>\n.*?\n</answer>\n$"
-    responses = [completion[0]["content"] for completion in completions]
-    matches = [re.match(pattern, r) for r in responses]
+    matches = [re.match(pattern, c) for c in completions]
     return [0.5 if match else 0.0 for match in matches]
 
 
 def soft_format_reward_func(completions, **kwargs) -> list[float]:
     """Reward function that checks if the completion has a specific format."""
     pattern = r"<think>.*?</think>\s*<answer>.*?</answer>"
-    responses = [completion[0]["content"] for completion in completions]
-    matches = [re.match(pattern, r) for r in responses]
+    matches = [re.match(pattern, c) for c in completions]
     return [0.5 if match else 0.0 for match in matches]
 
 def wer_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
@@ -169,8 +153,7 @@ def wer_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
     inside <answer> and </answer> is considered.
     """
     # Extract the generated responses and isolate the final answer.
-    responses = [completion[0]["content"] for completion in completions]
-    generated_answers = [extract_xml_answer(r) for r in responses]
+    generated_answers = [extract_xml_answer(c) for c in completions]
     
     # Decode the ground truth answers from token ids, then extract only the text within the <answer> tags.
     decoded_answers = processor.batch_decode(batch["answer_ids"])
@@ -180,6 +163,7 @@ def wer_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
     replicated_ground_truth = ground_truth_answers * num_return_sequences
     
     rewards = []
+    breakpoint()
     for gen, gt in zip(generated_answers, replicated_ground_truth):
         # Compute error rate using jiwer's wer function.
         error_rate = wer(gen, gt)
@@ -202,10 +186,8 @@ def count_xml(text) -> float:
         count -= (len(text.split("\n</answer>")[-1]) - 1) * 0.001
     return count
 
-
 def xmlcount_reward_func(completions, **kwargs) -> list[float]:
-    contents = [completion[0]["content"] for completion in completions]
-    return [count_xml(c) for c in contents]
+    return [count_xml(c) for c in completions]
 
 
 arguments = ed.GRPOConfig(
@@ -217,7 +199,7 @@ arguments = ed.GRPOConfig(
     log_steps=10,
     use_wandb=False,
     report_steps=5,
-    save_steps=100,
+    save_steps=500,
     progress_bar_type="json",
     save_optimizer_state=False,
     do_eval=False,
@@ -251,7 +233,7 @@ def data_tokenize_fn(batch, tokenizer, tools):
         # Use the first token from eos_token if it's a list, otherwise use eos_token directly.
         tokenizer.pad_token = tokenizer.eos_token[0] if isinstance(tokenizer.eos_token, list) else tokenizer.eos_token
     # Debug print
-    print(f"DEBUG: batch['answer'] type: {type(batch['answer'])}, value: {batch['answer']}")
+    # print(f"DEBUG: batch['answer'] type: {type(batch['answer'])}, value: {batch['answer']}")
 
     if not isinstance(batch["answer"], (str, list)):  # Ensure answer is a valid type
         raise TypeError(f"Unexpected format for 'answer': {type(batch['answer'])}") 
