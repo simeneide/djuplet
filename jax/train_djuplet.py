@@ -58,20 +58,27 @@ XML_COT_FORMAT = """\
 
 def extract_chat_messages(text: str) -> dict:
     """
-    Extracts messages from a text formatted with header markers.
-    Returns a dictionary with roles (e.g. 'user', 'assistant') as keys
-    and the corresponding message content as values.
+    Extracts messages from text formatted with header markers.
     
-    The text is expected to have messages delimited by markers:
-    <|start_header_id|>role<|end_header_id|> message <|eot_id|>
+    Expected format:
+    <|start_header_id|>role<|end_header_id|>
+    message content
+    <|eot_id|>
+    
+    Returns a dict mapping roles (e.g. 'user', 'assistant') to their message content.
     """
-    pattern = r"<\|start_header_id\>(.*?)<\|end_header_id\>\s*(.*?)\s*<\|eot_id\>"
+    start_marker = re.escape("<|start_header_id|>")
+    end_marker = re.escape("<|end_header_id|>")
+    eot_marker = re.escape("<|eot_id|>")
+    
+    pattern = start_marker + r"(.*?)" + end_marker + r"(.*?)" + eot_marker
     matches = re.findall(pattern, text, flags=re.DOTALL)
+    
     messages = {}
     for role, content in matches:
-        role = role.strip().lower()
-        messages[role] = content.strip()
+        messages[role.strip().lower()] = content.strip()
     return messages
+
 
 def extract_xml_answer(text: str) -> str:
     answer = text.split("<answer>")[-1]
@@ -84,23 +91,30 @@ def extract_hash_answer(text: str):
         return None
     return text.split("####")[1].strip()
 
-
 def get_norwegian_questions(split="train") -> Dataset:
     data = load_dataset("pere/reasoning_chat_norwegian")[split]
-    data = data.map(
-        lambda x: {
-            "prompt": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": extract_chat_messages(x["text"]).get("user", "")},
-            ],
-            "answer": extract_chat_messages(x["text"]).get("assistant", ""),
+
+    def format_chat(x):
+        user_message = extract_chat_messages(x["text"]).get("user", "")
+        assistant_message = extract_chat_messages(x["text"]).get("assistant", "")
+        messages = [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_message},
+        ]
+
+        chat_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+
+        return {
+            "prompt": chat_text,
+            "answer": assistant_message,  # Keep structured format
         }
-    )
+
+    data = data.map(format_chat)
     return data
 
+
 def debug_reward_func(prompts, completions, batch, **kwargs) -> list[float]:
-    breakpoint()
-    # With roughly a 1 in 100 chance, print all completions for debugging.
+    # With roughly a 1 in 10 chance, print all completions for debugging.
     if random.randint(1, 10) == 10:
         for i, completion in enumerate(completions):
             print(f"Completion {i}:")
@@ -236,7 +250,11 @@ def data_tokenize_fn(batch, tokenizer, tools):
     if tokenizer.pad_token is None:
         # Use the first token from eos_token if it's a list, otherwise use eos_token directly.
         tokenizer.pad_token = tokenizer.eos_token[0] if isinstance(tokenizer.eos_token, list) else tokenizer.eos_token
- 
+    # Debug print
+    print(f"DEBUG: batch['answer'] type: {type(batch['answer'])}, value: {batch['answer']}")
+
+    if not isinstance(batch["answer"], (str, list)):  # Ensure answer is a valid type
+        raise TypeError(f"Unexpected format for 'answer': {type(batch['answer'])}") 
 
     ids = tokenizer(
         batch["prompt"],
