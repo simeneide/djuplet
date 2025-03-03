@@ -97,35 +97,42 @@ def word_error_rate_reward_func(completions, original_summary, **kwargs):
     """
     rewards = []
     for completion, ground_truth in zip(completions, original_summary):
-        # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
-        completion = "<think>" + completion
-        # Check if the format is correct
-        match = re.search(r"<answer>(.*?)<\/answer>", completion)
-        if match is None:
-            rewards.append(0.0)
-            continue
-        # Extract the "answer" part from the completion
-        generated_answer = match.group(1).strip()
-        # Extract all numbers from the equation
+        try:
+            # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
+            completion = "<think>" + completion
+            # Check if the format is correct
+            match = re.search(r"<answer>(.*?)<\/answer>", completion)
+            if match is None:
+                rewards.append(0.0)
+                continue
+            # Extract the "answer" part from the completion
+            generated_answer = match.group(1).strip()
+            # Extract all numbers from the equation
 
-        error_rate = wer(generated_answer, ground_truth)
-        r = min(1.0, max(0.0, 1- error_rate))
-        rewards.append(r)
-        # Check if the equation is correct and matches the ground truth
-        
-        if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
-            os.makedirs("completion_samples", exist_ok=True)
-            log_file = os.path.join("completion_samples", "completion_samples.txt")
-            with open(log_file, "a") as f:
-                f.write(f"\n\n==============\n")
-                f.write(f"wer reward: {r}\n")
-                f.write(completion)
+            error_rate = wer(generated_answer, ground_truth)
+            r = min(1.0, max(0.0, 1- error_rate))
+            rewards.append(r)
+            # Check if the equation is correct and matches the ground truth
+            
+            if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
+                os.makedirs("completion_samples", exist_ok=True)
+                log_file = os.path.join("completion_samples", "completion_samples.txt")
+                with open(log_file, "a") as f:
+                    f.write(f"\n\n==============\n")
+                    f.write(f"wer reward: {r}\n")
+                    f.write(completion)
+        except Exception as e:
+            print(f"Error in reward function: {e}")
+            rewards.append(0.0)
 
     return rewards
 
 base_model ="Qwen/Qwen2.5-3B-Instruct"
 output_dir = "results_summary"
-training_args = GRPOConfig(output_dir=output_dir, logging_steps=2, use_vllm=True, vllm_device="cuda:1", per_device_train_batch_size=8, gradient_accumulation_steps=3, vllm_gpu_memory_utilization=0.3)
+training_args = GRPOConfig(
+    output_dir=output_dir, 
+    logging_steps=2, 
+    use_vllm=True, vllm_device="cuda:1", per_device_train_batch_size=8, gradient_accumulation_steps=3, vllm_gpu_memory_utilization=0.3, save_total_limit= 2,save_steps=100, save_strategy="steps")
 trainer = GRPOTrainer(
     model=base_model,
     reward_funcs=[word_error_rate_reward_func, format_reward_func],
