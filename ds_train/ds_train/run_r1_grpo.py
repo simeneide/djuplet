@@ -118,62 +118,6 @@ def format_reward_func(completions, **kwargs):
     return rewards
     
 
-def equation_reward_func(completions, target, nums, **kwargs):
-    """
-    Evaluates completions based on:
-    2. Mathematical correctness of the answer
-
-    Args:
-        completions (list[str]): Generated outputs
-        target (list[str]): Expected answers
-        nums (list[str]): Available numbers
-    
-    Returns:
-        list[float]: Reward scores
-    """
-    rewards = []
-    for completion, gt, numbers in zip(completions, target, nums):
-      try:
-        # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
-        completion = "<think>" + completion
-        # Check if the format is correct
-        match = re.search(r"<answer>(.*?)<\/answer>", completion)
-        if match is None:
-            rewards.append(0.0)
-            continue
-        # Extract the "answer" part from the completion
-        equation = match.group(1).strip()
-        # Extract all numbers from the equation
-        used_numbers = [int(n) for n in re.findall(r'\d+', equation)]
-        
-        # Check if all numbers are used exactly once
-        if sorted(used_numbers) != sorted(numbers):
-            rewards.append(0.0)
-            continue
-        # Define a regex pattern that only allows numbers, operators, parentheses, and whitespace
-        allowed_pattern = r'^[\d+\-*/().\s]+$'
-        if not re.match(allowed_pattern, equation):
-           rewards.append(0.0)
-           continue
-        
-        # Evaluate the equation with restricted globals and locals
-        result = eval(equation, {"__builtins__": None}, {})
-        # Check if the equation is correct and matches the ground truth
-        if abs(float(result) - float(gt)) < 1e-5:
-            rewards.append(1.0)
-            if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
-                os.makedirs("completion_samples", exist_ok=True)
-                log_file = os.path.join("completion_samples", "success_completion_samples.txt")
-                with open(log_file, "a") as f:
-                    f.write(f"\n\n==============\n")
-                    f.write(completion)
-        else:
-            rewards.append(0.0)
-      except Exception:
-            # If evaluation fails, reward is 0
-            rewards.append(0.0) 
-    return rewards
-
 from jiwer import wer
 def corrupt_reward_func(completions, original_text, **kwargs):
     """
@@ -205,13 +149,13 @@ def corrupt_reward_func(completions, original_text, **kwargs):
         r = min(1.0, max(0.0, 1- error_rate))
         rewards.append(r)
         # Check if the equation is correct and matches the ground truth
-        if r==1.0:
-            if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
-                os.makedirs("completion_samples", exist_ok=True)
-                log_file = os.path.join("completion_samples", "success_completion_samples.txt")
-                with open(log_file, "a") as f:
-                    f.write(f"\n\n==============\n")
-                    f.write(completion)
+        if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
+            os.makedirs("completion_samples", exist_ok=True)
+            log_file = os.path.join("completion_samples", "completion_samples.txt")
+            with open(log_file, "a") as f:
+                f.write(f"\n\n==============\n")
+                f.write(f"wer reward: {r}\n")
+                f.write(completion)
 
       except Exception as e:
             print(e)
@@ -235,17 +179,7 @@ def corrupt_reward_binary_func(completions, original_text, **kwargs):
     rewards = []
     for completion, ground_truth in zip(completions, original_text):
       try:
-        # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
-        completion = "<think>" + completion
-        # Check if the format is correct
-        match = re.search(r"<answer>(.*?)<\/answer>", completion)
-        if match is None:
-            rewards.append(0.0)
-            continue
-        # Extract the "answer" part from the completion
-        generated_answer = match.group(1).strip()
-        # Extract all numbers from the equation
-        error_rate = wer(generated_answer, ground_truth)
+        error_rate = wer(completion, ground_truth)
         score = min(1.0, max(0.0, 1- error_rate))
         
         # Check if the equation is correct and matches the ground truth
@@ -321,7 +255,7 @@ def grpo_function(
     # gemerate r1 prompt with a prefix for the model to already start with the thinking process
     def generate_r1_prompt(corrupt, original_text):
 
-        prompt = f"""{prompt_template} {corrupt} <think> """
+        prompt = f"""{prompt_template}\n{corrupt}\nKorrigert tekst: """
 
         return {"prompt": prompt, "corrupt": corrupt, "original_text": original_text}
 
@@ -335,7 +269,7 @@ def grpo_function(
     trainer = GRPOTrainer(
       model=model_args.model_name_or_path,
       processing_class=tokenizer,
-      reward_funcs=[format_reward_func, corrupt_reward_func, corrupt_reward_binary_func, language_reward],
+      reward_funcs=[corrupt_reward_func, corrupt_reward_binary_func],
       args=training_args,
       train_dataset=dataset['train'],
       eval_dataset=dataset['validation'],
@@ -405,12 +339,14 @@ def filter_dataclass_args(dataclass_cls, config):
             if key in allowed_fields and value is not None}
 
 if __name__ == "__main__":
-    #config = load_config("norsk_zero.yaml")
-    config = load_config("norsk_warmstart.yaml")
+    config = load_config("norsk_zero.yaml")
+    #config = load_config("norsk_warmstart.yaml")
 
     model_args = ModelConfig(**filter_dataclass_args(ModelConfig, config))
     script_args = ScriptArguments(**filter_dataclass_args(ScriptArguments, config))
     training_args  = GRPOConfig(**filter_dataclass_args(GRPOConfig, config))
+
+    #default_config = GRPOConfig()
     # Run the main training loop
     grpo_function(model_args, script_args, training_args)
 
